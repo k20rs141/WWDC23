@@ -8,6 +8,10 @@ struct HomeView: View {
     @State private var showSearch = false
     @State private var mapSelection: MKMapItem?
     @State private var searchResults = [MKMapItem]()
+    @State private var showDetails = false
+    @State private var routeDisplaying = false
+    @State private var route: MKRoute?
+    @State private var routeDistination: MKMapItem?
     @Namespace private var locationSpace
     
     var body: some View {
@@ -15,11 +19,16 @@ struct HomeView: View {
             Map(position: $cameraPosition, selection: $mapSelection, scope: locationSpace) {
                 Marker("九州産業大学", coordinate: .location)
                     .annotationTitles(.visible)
-                
+
                 ForEach(searchResults, id: \.self) { mapItem in
                     let placemark = mapItem.placemark
                     Marker(placemark.name ?? "No Name", coordinate: placemark.coordinate)
-                        .tint(.red)
+                        .tint(Color(red: 0.545, green: 0.133, blue: 0.176))
+                }
+
+                if let route {
+                    MapPolyline(route.polyline)
+                        .stroke(.red, lineWidth: 7)
                 }
             }
             .onMapCameraChange { context in
@@ -36,6 +45,37 @@ struct HomeView: View {
             .searchable(text: $searchText, isPresented: $showSearch)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .sheet(isPresented: $showDetails, onDismiss: {
+                withAnimation(.snappy) {
+                    if let boundingRect = route?.polyline.boundingMapRect, routeDisplaying {
+                        cameraPosition = .rect(boundingRect)
+                    }
+                }
+            }) {
+                MapDetails()
+                    .presentationDetents([.height(100)])
+                    .presentationBackgroundInteraction(.enabled(upThrough: .height(100)))
+                    .presentationCornerRadius(25)
+                    .interactiveDismissDisabled(true)
+            }
+            .safeAreaInset(edge: .bottom) {
+                if routeDisplaying {
+                    Button("ルート終了") {
+                        withAnimation(.snappy) {
+                            routeDisplaying = false
+                            showDetails = false
+                            mapSelection = routeDistination
+                            routeDistination = nil
+                            route = nil
+                            cameraPosition = .region(.region)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(.white)
+                    .padding(.vertical, 12)
+                    .background(Color(red: 0.545, green: 0.133, blue: 0.176).gradient, in: .rect(cornerRadius: 15))
+                }
+            }
         }
         .onSubmit(of: .search) {
             Task {
@@ -51,8 +91,24 @@ struct HomeView: View {
                 }
             }
         }
+        .onChange(of: mapSelection) {
+            showDetails = true
+        }
     }
 
+    @ViewBuilder
+    func MapDetails() -> some View {
+        VStack(spacing: 15) {
+            Button("ルート案内", action: fetchRoute)
+                .frame(maxWidth: .infinity)
+                .foregroundStyle(.white)
+                .padding(.vertical, 12)
+                .background(Color(red: 0.545, green: 0.133, blue: 0.176).gradient, in: .rect(cornerRadius: 15))
+        }
+        .padding(15)
+    }
+
+    // マップ検索
     func searchPlaces() async {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = searchText
@@ -60,6 +116,26 @@ struct HomeView: View {
 
         let results = try? await MKLocalSearch(request: request).start()
         searchResults = results?.mapItems ?? []
+    }
+
+    // ルート検索
+    func fetchRoute() {
+        if let mapSelection {
+            let request = MKDirections.Request()
+            request.source = .init(placemark: .init(coordinate: .location))
+            request.destination = mapSelection
+
+            Task {
+                let result = try? await MKDirections(request: request).calculate()
+                route = result?.routes.first
+                routeDistination = mapSelection
+                
+                withAnimation(.snappy) {
+                    routeDisplaying = true
+                    showDetails = false
+                }
+            }
+        }
     }
 }
 
