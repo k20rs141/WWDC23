@@ -86,6 +86,8 @@
 			dependencies = (
 			);
 			name = "MapKit-iOS17";
+			packageProductDependencies = (
+			);
 			productName = "MapKit-iOS17";
 			productReference = 9FB5E4BB2A35B934002745F7 /* MapKit-iOS17.app */;
 			productType = "com.apple.product-type.application";
@@ -114,6 +116,8 @@
 				Base,
 			);
 			mainGroup = 9FB5E4B22A35B934002745F7;
+			packageReferences = (
+			);
 			productRefGroup = 9FB5E4BC2A35B934002745F7 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
